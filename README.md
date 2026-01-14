@@ -1,4 +1,4 @@
-# Terminal Vision Pipeline
+# Asciinema
 
 A high-performance, multithreaded video-to-terminal renderer built in modern C++17. Decodes video files in real-time, processes frames through a concurrent pipeline, and renders them as ASCII art or true-color output directly in your terminal.
 
