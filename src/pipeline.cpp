@@ -25,12 +25,13 @@ Pipeline::~Pipeline() {
     stop();
 }
 
-bool Pipeline::start(const std::string& video_path, RenderMode mode) {
+bool Pipeline::start(const std::string& video_path, const PipelineConfig& config) {
     if (running_) return false;
 
     if (!decoder_.open(video_path)) return false;
 
-    mode_ = mode;
+    mode_ = config.mode;
+    backpressure_ = config.backpressure;
     dims_ = get_terminal_size();
     processor_ = FrameProcessor(dims_, mode_);
     running_ = true;
@@ -65,11 +66,17 @@ void Pipeline::decode_loop() {
             continue;
         }
 
-        if (!decode_queue_.try_push(std::move(*frame))) {
-            metrics_.frames_dropped++;
-        } else {
+        if (backpressure_) {
+            decode_queue_.push(std::move(*frame));
             metrics_.frames_decoded++;
             metrics_.decode_fps.tick();
+        } else {
+            if (!decode_queue_.try_push(std::move(*frame))) {
+                metrics_.frames_dropped++;
+            } else {
+                metrics_.frames_decoded++;
+                metrics_.decode_fps.tick();
+            }
         }
 
         next_frame_time += std::chrono::milliseconds(static_cast<int>(frame_delay));
@@ -84,11 +91,17 @@ void Pipeline::process_loop() {
 
         ProcessedFrame processed = processor_.process(raw);
 
-        if (!render_queue_.try_push(std::move(processed))) {
-            metrics_.frames_dropped++;
-        } else {
+        if (backpressure_) {
+            render_queue_.push(std::move(processed));
             metrics_.frames_processed++;
             metrics_.process_fps.tick();
+        } else {
+            if (!render_queue_.try_push(std::move(processed))) {
+                metrics_.frames_dropped++;
+            } else {
+                metrics_.frames_processed++;
+                metrics_.process_fps.tick();
+            }
         }
     }
 }
@@ -103,6 +116,8 @@ void Pipeline::render_loop() {
         renderer = new TerminalRenderer();
     }
 
+    const char* strategy = backpressure_ ? "BP" : "DROP";
+
     while (running_) {
         ProcessedFrame frame = render_queue_.pop();
         if (!frame.valid()) continue;
@@ -114,6 +129,8 @@ void Pipeline::render_loop() {
         std::string stats = metrics_.format();
         stats += " | Q:" + std::to_string(decode_queue_.size()) + "/" + 
                  std::to_string(decode_queue_.capacity());
+        stats += " | ";
+        stats += strategy;
 
         if (mode_ == RenderMode::TrueColor) {
             std::cout << "\033[H" << frame.char_grid << "\033[0m";

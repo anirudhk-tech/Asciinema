@@ -14,6 +14,7 @@ void print_usage(const char* prog) {
     std::cerr << "Usage: " << prog << " [OPTIONS] <video>\n\n"
               << "Options:\n"
               << "  -color    True color (24-bit) rendering\n"
+              << "  -bp       Enable backpressure (default: frame dropping)\n"
               << "  -help     Show this message\n";
 }
 
@@ -21,11 +22,14 @@ int main(int argc, char* argv[]) {
     using namespace asciinema;
 
     bool use_color = false;
+    bool use_backpressure = false;
     std::string video_path;
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "-color") == 0)
             use_color = true;
+        else if (std::strcmp(argv[i], "-bp") == 0)
+            use_backpressure = true;
         else if (std::strcmp(argv[i], "-help") == 0 || std::strcmp(argv[i], "--help") == 0) {
             print_usage(argv[0]);
             return 0;
@@ -49,9 +53,11 @@ int main(int argc, char* argv[]) {
 
     signal(SIGINT, signal_handler);
 
-    RenderMode mode = use_color ? RenderMode::TrueColor : RenderMode::ASCII;
+    PipelineConfig config;
+    config.mode = use_color ? RenderMode::TrueColor : RenderMode::ASCII;
+    config.backpressure = use_backpressure;
 
-    if (!pipeline.start(video_path, mode)) {
+    if (!pipeline.start(video_path, config)) {
         std::cerr << "Error: Could not start pipeline for " << video_path << "\n";
         return 1;
     }

@@ -13,6 +13,11 @@
 
 namespace asciinema {
 
+struct PipelineConfig {
+    RenderMode mode = RenderMode::ASCII;
+    bool backpressure = false;
+};
+
 class Pipeline {
 public:
     Pipeline(size_t decode_queue_size = 16, size_t render_queue_size = 8);
@@ -21,7 +26,7 @@ public:
     Pipeline(const Pipeline&) = delete;
     Pipeline& operator=(const Pipeline&) = delete;
 
-    bool start(const std::string& video_path, RenderMode mode);
+    bool start(const std::string& video_path, const PipelineConfig& config);
     void stop();
     bool is_running() const { return running_; }
 
@@ -36,6 +41,7 @@ private:
 
     std::atomic<bool> running_{false};
     RenderMode mode_{RenderMode::ASCII};
+    bool backpressure_{false};
 
     VideoDecoder decoder_;
     FrameProcessor processor_;
