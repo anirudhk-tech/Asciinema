@@ -173,3 +173,6 @@ samples/*.avi
 samples/*.mkv
 samples/*.webm
 !samples/.gitkeep
+
+# Cursor
+.cursor/

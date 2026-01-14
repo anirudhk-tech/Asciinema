@@ -1,0 +1,37 @@
+#pragma once
+
+#include <chrono>
+#include <cstdint>
+#include <string>
+
+namespace asciinema {
+
+    using Clock = std::chrono::high_resolution_clock;
+    using TimePoint = std::chrono::time_point<Clock>;
+    using Duration = std::chrono::nanoseconds;
+
+    inline TimePoint now() {
+        return Clock::now();
+    }
+
+    inline double to_ms(Duration d) {
+        return std::chrono::duration<double, std::milli>(d).count();
+    }
+
+    using FrameId = uint64_t;
+
+    struct Dimensions {
+        int cols;
+        int rows;
+
+        [[nodiscard]] int area() const { return cols * rows; }
+    };
+
+    constexpr char ASCII_RAMP[] = "@%#*+=-:. ";
+    constexpr size_t ASCII_RAMP_SIZE = sizeof(ASCII_RAMP) - 1;
+
+    inline char pixel_to_char(uint8_t intensity) {
+        size_t index = (intensity * (ASCII_RAMP_SIZE - 1)) / 255;
+        return ASCII_RAMP[index];
+    }
+}
