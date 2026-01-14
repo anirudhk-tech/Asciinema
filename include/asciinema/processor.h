@@ -28,4 +28,4 @@ private:
     cv::Mat grayscale_;
 };
 
-}  // namespace asciinema
+}  

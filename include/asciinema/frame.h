@@ -47,4 +47,4 @@ struct ProcessedFrame {
     ProcessedFrame& operator=(const ProcessedFrame&) = default;
 };
 
-}  // namespace asciinema
+} 

@@ -2,23 +2,16 @@
 
 #include "asciinema/decoder.h"
 #include "asciinema/frame.h"
+#include "asciinema/metrics.h"
 #include "asciinema/processor.h"
 #include "asciinema/queue.h"
 #include "asciinema/renderer.h"
 
 #include <atomic>
-#include <functional>
 #include <string>
 #include <thread>
 
 namespace asciinema {
-
-struct PipelineStats {
-    std::atomic<uint64_t> frames_decoded{0};
-    std::atomic<uint64_t> frames_processed{0};
-    std::atomic<uint64_t> frames_rendered{0};
-    std::atomic<uint64_t> frames_dropped{0};
-};
 
 class Pipeline {
 public:
@@ -32,7 +25,7 @@ public:
     void stop();
     bool is_running() const { return running_; }
 
-    const PipelineStats& stats() const { return stats_; }
+    const Metrics& metrics() const { return metrics_; }
     size_t decode_queue_depth() const { return decode_queue_.size(); }
     size_t render_queue_depth() const { return render_queue_.size(); }
 
@@ -55,7 +48,7 @@ private:
     std::thread process_thread_;
     std::thread render_thread_;
 
-    PipelineStats stats_;
+    Metrics metrics_;
 };
 
 }

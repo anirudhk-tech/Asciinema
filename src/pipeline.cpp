@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <iostream>
-#include <sstream>
 #include <termios.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
@@ -67,9 +66,10 @@ void Pipeline::decode_loop() {
         }
 
         if (!decode_queue_.try_push(std::move(*frame))) {
-            stats_.frames_dropped++;
+            metrics_.frames_dropped++;
         } else {
-            stats_.frames_decoded++;
+            metrics_.frames_decoded++;
+            metrics_.decode_fps.tick();
         }
 
         next_frame_time += std::chrono::milliseconds(static_cast<int>(frame_delay));
@@ -85,9 +85,10 @@ void Pipeline::process_loop() {
         ProcessedFrame processed = processor_.process(raw);
 
         if (!render_queue_.try_push(std::move(processed))) {
-            stats_.frames_dropped++;
+            metrics_.frames_dropped++;
         } else {
-            stats_.frames_processed++;
+            metrics_.frames_processed++;
+            metrics_.process_fps.tick();
         }
     }
 }
@@ -106,25 +107,22 @@ void Pipeline::render_loop() {
         ProcessedFrame frame = render_queue_.pop();
         if (!frame.valid()) continue;
 
-        stats_.frames_rendered++;
+        metrics_.frames_rendered++;
+        metrics_.render_fps.tick();
+        metrics_.latency.record(frame.latency_ms());
 
-        std::ostringstream stats_str;
-        stats_str << "D:" << stats_.frames_decoded 
-                  << " P:" << stats_.frames_processed
-                  << " R:" << stats_.frames_rendered
-                  << " Drop:" << stats_.frames_dropped
-                  << " Q:" << decode_queue_.size() << "/" << decode_queue_.capacity()
-                  << " | " << frame.latency_ms() << "ms"
-                  << " | q=quit";
+        std::string stats = metrics_.format();
+        stats += " | Q:" + std::to_string(decode_queue_.size()) + "/" + 
+                 std::to_string(decode_queue_.capacity());
 
         if (mode_ == RenderMode::TrueColor) {
             std::cout << "\033[H" << frame.char_grid << "\033[0m";
             std::cout << "\033[" << (dims_.rows + 1) << ";1H\033[7m " 
-                      << stats_str.str() << " \033[0m" << std::flush;
+                      << stats << " \033[0m" << std::flush;
         } else {
             renderer->clear();
             renderer->render(frame, mode_);
-            renderer->render_stats(stats_str.str());
+            renderer->render_stats(stats);
             renderer->refresh();
 
             int ch = getch();

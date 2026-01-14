@@ -45,4 +45,4 @@ private:
     int height_ = 0;
 };
 
-}  // namespace asciinema
+} 
