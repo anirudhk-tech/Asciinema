@@ -1,11 +1,28 @@
 #include "asciinema/decoder.h"
 #include "asciinema/processor.h"
+#include "asciinema/renderer.h"
+#include "asciinema/types.h"
 
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <thread>
+#include <csignal>
+#include <termios.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
+
+static volatile bool running = true;
+
+void signal_handler(int) { running = false; }
+
+asciinema::Dimensions get_terminal_size() {
+    struct winsize w;
+    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
+    return {w.ws_col, static_cast<int>(w.ws_row - 2)};
+}
 
 void print_usage(const char* prog) {
     std::cerr << "Usage: " << prog << " [OPTIONS] <video>\n\n"
@@ -47,21 +64,65 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    signal(SIGINT, signal_handler);
+
     RenderMode mode = use_color ? RenderMode::TrueColor : RenderMode::ASCII;
-    FrameProcessor processor({160, 45}, mode);
-
     const char* mode_str = use_color ? "TrueColor" : "ASCII";
-    std::cout << decoder.width() << "x" << decoder.height()
-              << " @ " << decoder.fps() << " FPS [" << mode_str << "]\n\n";
 
-    while (auto frame = decoder.next_frame()) {
-        auto processed = processor.process(*frame);
+    if (use_color) {
+        Dimensions dims = get_terminal_size();
+        FrameProcessor processor(dims, mode);
 
-        std::cout << "\033[0m\033[2J\033[H" << processed.char_grid << "\033[0m"
-                  << "\nFrame " << processed.id << " | " << processed.latency_ms() << "ms\n";
+        std::cout << "\033[?25l\033[?1049h";
 
-        std::this_thread::sleep_for(
-            std::chrono::milliseconds(static_cast<int>(decoder.frame_delay_ms())));
+        while (running) {
+            auto frame = decoder.next_frame();
+            if (!frame) break;
+
+            auto processed = processor.process(*frame);
+
+            std::cout << "\033[H" << processed.char_grid << "\033[0m";
+            
+            std::cout << "\033[" << (dims.rows + 1) << ";1H\033[7m"
+                      << " Frame " << processed.id << "/" << decoder.total_frames()
+                      << " | " << processed.latency_ms() << "ms"
+                      << " | " << mode_str << " | Ctrl+C=quit \033[0m" << std::flush;
+
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(static_cast<int>(decoder.frame_delay_ms())));
+        }
+
+        // Restore terminal
+        std::cout << "\033[?1049l\033[?25h" << std::flush;
+
+    } else {
+        // ASCII mode: use ncurses
+        TerminalRenderer renderer;
+        Dimensions dims = renderer.dimensions();
+        FrameProcessor processor(dims, mode);
+
+        while (running) {
+            auto frame = decoder.next_frame();
+            if (!frame) break;
+
+            auto processed = processor.process(*frame);
+
+            renderer.clear();
+            renderer.render(processed, mode);
+
+            std::ostringstream stats;
+            stats << "Frame " << processed.id << "/" << decoder.total_frames()
+                  << " | " << processed.latency_ms() << "ms"
+                  << " | " << mode_str << " | q=quit";
+            renderer.render_stats(stats.str());
+            renderer.refresh();
+
+            int ch = getch();
+            if (ch == 'q' || ch == 'Q') break;
+
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(static_cast<int>(decoder.frame_delay_ms())));
+        }
     }
 
     return 0;
