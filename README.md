@@ -248,3 +248,10 @@ double p95() const {
 ## License
 
 MIT License
+
+## Community
+
+- `CONTRIBUTING.md`
+- `CODE_OF_CONDUCT.md`
+- `SECURITY.md`
+- `CHANGELOG.md`
