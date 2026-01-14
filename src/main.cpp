@@ -1,45 +1,68 @@
 #include "asciinema/decoder.h"
-#include "asciinema/frame.h"
+#include "asciinema/processor.h"
+
+#include <chrono>
+#include <cstring>
 #include <iostream>
+#include <string>
+#include <thread>
+
+void print_usage(const char* prog) {
+    std::cerr << "Usage: " << prog << " [OPTIONS] <video>\n\n"
+              << "Options:\n"
+              << "  -color    True color (24-bit) rendering\n"
+              << "  -help     Show this message\n";
+}
 
 int main(int argc, char* argv[]) {
     using namespace asciinema;
-    
-    // Check for video path argument
-    if (argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <video_path>\n";
-        std::cerr << "Example: " << argv[0] << " samples/test.mp4\n";
+
+    bool use_color = false;
+    std::string video_path;
+
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "-color") == 0)
+            use_color = true;
+        else if (std::strcmp(argv[i], "-help") == 0 || std::strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (argv[i][0] == '-') {
+            std::cerr << "Unknown option: " << argv[i] << "\n";
+            print_usage(argv[0]);
+            return 1;
+        } else {
+            video_path = argv[i];
+        }
+    }
+
+    if (video_path.empty()) {
+        std::cerr << "Error: No video file specified\n\n";
+        print_usage(argv[0]);
         return 1;
     }
-    
-    const std::string video_path = argv[1];
-    
-    // Create and open decoder
+
     VideoDecoder decoder;
     if (!decoder.open(video_path)) {
-        std::cerr << "Error: Could not open video: " << video_path << "\n";
+        std::cerr << "Error: Could not open " << video_path << "\n";
         return 1;
     }
-    
-    // Print video info
-    std::cout << "Video loaded: " << video_path << "\n";
-    std::cout << "  Resolution: " << decoder.width() << "x" << decoder.height() << "\n";
-    std::cout << "  FPS: " << decoder.fps() << "\n";
-    std::cout << "  Total frames: " << decoder.total_frames() << "\n";
-    std::cout << "  Frame delay: " << decoder.frame_delay_ms() << " ms\n";
-    std::cout << "\n";
-    
-    // Read first 10 frames 
-    std::cout << "Reading first 10 frames...\n";
-    int count = 0;
+
+    RenderMode mode = use_color ? RenderMode::TrueColor : RenderMode::ASCII;
+    FrameProcessor processor({160, 45}, mode);
+
+    const char* mode_str = use_color ? "TrueColor" : "ASCII";
+    std::cout << decoder.width() << "x" << decoder.height()
+              << " @ " << decoder.fps() << " FPS [" << mode_str << "]\n\n";
+
     while (auto frame = decoder.next_frame()) {
-        std::cout << "  Frame " << frame->id 
-                  << ": " << frame->image.cols << "x" << frame->image.rows
-                  << " (" << (frame->image.total() * frame->image.elemSize()) << " bytes)\n";
-        
-        if (++count >= 10) break;
+        auto processed = processor.process(*frame);
+
+        std::cout << "\033[0m\033[2J\033[H" << processed.char_grid << "\033[0m"
+                  << "\nFrame " << processed.id << " | " << processed.latency_ms() << "ms\n";
+
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(static_cast<int>(decoder.frame_delay_ms())));
     }
-    
-    std::cout << "\nPhase 2 complete! Decoder working.\n";
+
     return 0;
 }

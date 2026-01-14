@@ -8,48 +8,41 @@
 #include <string>
 
 namespace asciinema {
-    class VideoDecoder {
-        public:
-            VideoDecoder() = default;
 
-            ~VideoDecoder() = default;
+class VideoDecoder {
+public:
+    VideoDecoder() = default;
+    ~VideoDecoder() = default;
 
-            VideoDecoder(const VideoDecoder&) = delete;
-            VideoDecoder& operator=(const VideoDecoder&) = delete;
+    VideoDecoder(const VideoDecoder&) = delete;
+    VideoDecoder& operator=(const VideoDecoder&) = delete;
+    VideoDecoder(VideoDecoder&&) = default;
+    VideoDecoder& operator=(VideoDecoder&&) = default;
 
-            VideoDecoder(VideoDecoder&&) = default;
-            VideoDecoder& operator=(VideoDecoder&&) = default;
+    [[nodiscard]] bool open(const std::string& path);
+    [[nodiscard]] bool is_open() const;
+    void close();
 
-            [[nodiscard]] bool open(const std::string& path);
+    [[nodiscard]] std::optional<RawFrame> next_frame();
 
-            [[nodiscard]] bool is_open() const;
+    [[nodiscard]] double fps() const;
+    [[nodiscard]] double frame_delay_ms() const;
+    [[nodiscard]] int64_t total_frames() const;
+    [[nodiscard]] int width() const;
+    [[nodiscard]] int height() const;
+    [[nodiscard]] int64_t current_position() const;
 
-            void close();
+    void seek(int64_t frame_number);
+    void reset();
 
-            [[nodiscard]] std::optional<RawFrame> next_frame();
+private:
+    cv::VideoCapture capture_;
+    std::string path_;
+    FrameId next_frame_id_ = 0;
+    double fps_ = 0.0;
+    int64_t total_frames_ = 0;
+    int width_ = 0;
+    int height_ = 0;
+};
 
-            [[nodiscard]] double frame_delay_ms() const;
-
-            [[nodiscard]] double fps() const;
-
-            [[nodiscard]] int64_t total_frames() const;
-
-            [[nodiscard]] int width() const;
-            [[nodiscard]] int height() const;
-
-            [[nodiscard]] int64_t current_position() const;
-
-            void seek(int64_t frame_number);
-
-            void reset();
-
-    private:
-        cv::VideoCapture capture_;
-        std::string path_;
-        FrameId next_frame_id_;
-        double fps_ = 0.0;
-        int64_t total_frames_ = 0;
-        int width_ = 0;
-        int height_ = 0;
-    };
-}
+}  // namespace asciinema
