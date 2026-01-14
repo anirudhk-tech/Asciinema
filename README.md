@@ -245,14 +245,6 @@ double p95() const {
 }
 ```
 
-## What I Learned
-
-- **Concurrent programming**: mutexes, condition variables, atomics
-- **Producer-consumer patterns**: bounded queues, backpressure strategies
-- **Modern C++17**: move semantics, RAII, `std::optional`, type aliases
-- **Real-time systems**: frame timing, latency measurement, graceful degradation
-- **Terminal graphics**: ANSI escape codes, ncurses double-buffering
-
 ## License
 
 MIT License
